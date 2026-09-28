@@ -7,6 +7,7 @@ Tasks are stored in a JSON file (`~/.todo.json` by default).
 
 ```bash
 python todo.py add Buy milk
+python todo.py add -p high Pay rent   # priorities: high, normal, low
 python todo.py list
 python todo.py done 1
 python todo.py rm 2

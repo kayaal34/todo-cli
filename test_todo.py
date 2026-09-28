@@ -39,3 +39,12 @@ def test_cli_add_and_list(tmp_path, capsys):
     todo.main(["--db", str(db), "list"])
     out = capsys.readouterr().out
     assert "write tests" in out
+
+
+def test_sort_puts_high_priority_open_tasks_first():
+    tasks = []
+    todo.add_task(tasks, "low", "low")
+    todo.add_task(tasks, "urgent", "high")
+    todo.add_task(tasks, "finished", "high")
+    todo.complete_task(tasks, 3)
+    assert [t["title"] for t in todo.sort_tasks(tasks)] == ["urgent", "low", "finished"]

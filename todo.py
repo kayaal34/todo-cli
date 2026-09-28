@@ -20,12 +20,13 @@ def save_tasks(db_path, tasks):
         json.dump(tasks, f, indent=2, ensure_ascii=False)
 
 
-def add_task(tasks, title):
+def add_task(tasks, title, priority="normal"):
     next_id = max((t["id"] for t in tasks), default=0) + 1
     task = {
         "id": next_id,
         "title": title,
         "done": False,
+        "priority": priority,
         "created": datetime.now().isoformat(timespec="seconds"),
     }
     tasks.append(task)
@@ -58,9 +59,21 @@ def clear_done(tasks):
     return removed
 
 
+PRIORITY_ORDER = {"high": 0, "normal": 1, "low": 2}
+
+
+def sort_tasks(tasks):
+    """Open tasks first, then by priority, then by id."""
+    return sorted(
+        tasks,
+        key=lambda t: (t["done"], PRIORITY_ORDER[t.get("priority", "normal")], t["id"]),
+    )
+
+
 def format_task(task):
     mark = "x" if task["done"] else " "
-    return f"[{mark}] {task['id']:>3}  {task['title']}"
+    flag = {"high": "!", "low": "-"}.get(task.get("priority", "normal"), " ")
+    return f"[{mark}] {task['id']:>3} {flag} {task['title']}"
 
 
 def main(argv=None):
@@ -70,6 +83,7 @@ def main(argv=None):
 
     p_add = sub.add_parser("add", help="add a new task")
     p_add.add_argument("title", nargs="+")
+    p_add.add_argument("-p", "--priority", choices=PRIORITY_ORDER, default="normal")
 
     sub.add_parser("list", help="list all tasks")
 
@@ -85,13 +99,13 @@ def main(argv=None):
     tasks = load_tasks(args.db)
 
     if args.command == "add":
-        task = add_task(tasks, " ".join(args.title))
+        task = add_task(tasks, " ".join(args.title), args.priority)
         save_tasks(args.db, tasks)
         print(f"Added task {task['id']}: {task['title']}")
     elif args.command == "list":
         if not tasks:
             print("No tasks yet.")
-        for task in tasks:
+        for task in sort_tasks(tasks):
             print(format_task(task))
     elif args.command == "done":
         task = complete_task(tasks, args.id)
