@@ -32,6 +32,32 @@ def add_task(tasks, title):
     return task
 
 
+def find_task(tasks, task_id):
+    for task in tasks:
+        if task["id"] == task_id:
+            return task
+    raise SystemExit(f"No task with id {task_id}")
+
+
+def complete_task(tasks, task_id):
+    task = find_task(tasks, task_id)
+    task["done"] = True
+    return task
+
+
+def remove_task(tasks, task_id):
+    task = find_task(tasks, task_id)
+    tasks.remove(task)
+    return task
+
+
+def clear_done(tasks):
+    remaining = [t for t in tasks if not t["done"]]
+    removed = len(tasks) - len(remaining)
+    tasks[:] = remaining
+    return removed
+
+
 def format_task(task):
     mark = "x" if task["done"] else " "
     return f"[{mark}] {task['id']:>3}  {task['title']}"
@@ -47,6 +73,14 @@ def main(argv=None):
 
     sub.add_parser("list", help="list all tasks")
 
+    p_done = sub.add_parser("done", help="mark a task as done")
+    p_done.add_argument("id", type=int)
+
+    p_rm = sub.add_parser("rm", help="remove a task")
+    p_rm.add_argument("id", type=int)
+
+    sub.add_parser("clear", help="remove all completed tasks")
+
     args = parser.parse_args(argv)
     tasks = load_tasks(args.db)
 
@@ -59,6 +93,18 @@ def main(argv=None):
             print("No tasks yet.")
         for task in tasks:
             print(format_task(task))
+    elif args.command == "done":
+        task = complete_task(tasks, args.id)
+        save_tasks(args.db, tasks)
+        print(f"Completed: {task['title']}")
+    elif args.command == "rm":
+        task = remove_task(tasks, args.id)
+        save_tasks(args.db, tasks)
+        print(f"Removed: {task['title']}")
+    elif args.command == "clear":
+        removed = clear_done(tasks)
+        save_tasks(args.db, tasks)
+        print(f"Cleared {removed} completed task(s)")
 
 
 if __name__ == "__main__":
