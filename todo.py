@@ -65,6 +65,16 @@ def clear_done(tasks):
     return removed
 
 
+def filter_tasks(tasks, search=None, only_open=False):
+    result = tasks
+    if search:
+        needle = search.casefold()
+        result = [t for t in result if needle in t["title"].casefold()]
+    if only_open:
+        result = [t for t in result if not t["done"]]
+    return result
+
+
 PRIORITY_ORDER = {"high": 0, "normal": 1, "low": 2}
 
 
@@ -91,7 +101,9 @@ def main(argv=None):
     p_add.add_argument("title", nargs="+")
     p_add.add_argument("-p", "--priority", choices=PRIORITY_ORDER, default="normal")
 
-    sub.add_parser("list", help="list all tasks")
+    p_list = sub.add_parser("list", help="list all tasks")
+    p_list.add_argument("-s", "--search", help="only show tasks containing this text")
+    p_list.add_argument("--open", action="store_true", help="hide completed tasks")
 
     p_done = sub.add_parser("done", help="mark a task as done")
     p_done.add_argument("id", type=int)
@@ -113,9 +125,10 @@ def main(argv=None):
         save_tasks(args.db, tasks)
         print(f"Added task {task['id']}: {task['title']}")
     elif args.command == "list":
-        if not tasks:
-            print("No tasks yet.")
-        for task in sort_tasks(tasks):
+        shown = filter_tasks(tasks, args.search, args.open)
+        if not shown:
+            print("No tasks found." if tasks else "No tasks yet.")
+        for task in sort_tasks(shown):
             print(format_task(task))
     elif args.command == "done":
         task = complete_task(tasks, args.id)

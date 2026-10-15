@@ -55,3 +55,13 @@ def test_rename_task():
     todo.add_task(tasks, "old")
     todo.rename_task(tasks, 1, "new")
     assert tasks[0]["title"] == "new"
+
+
+def test_filter_by_search_and_open():
+    tasks = []
+    todo.add_task(tasks, "Buy milk")
+    todo.add_task(tasks, "buy bread")
+    todo.add_task(tasks, "Call mom")
+    todo.complete_task(tasks, 2)
+    assert [t["id"] for t in todo.filter_tasks(tasks, "BUY")] == [1, 2]
+    assert [t["id"] for t in todo.filter_tasks(tasks, "buy", only_open=True)] == [1]
