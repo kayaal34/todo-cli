@@ -52,11 +52,27 @@ def remove_task(tasks, task_id):
     return task
 
 
+def rename_task(tasks, task_id, title):
+    task = find_task(tasks, task_id)
+    task["title"] = title
+    return task
+
+
 def clear_done(tasks):
     remaining = [t for t in tasks if not t["done"]]
     removed = len(tasks) - len(remaining)
     tasks[:] = remaining
     return removed
+
+
+def filter_tasks(tasks, search=None, only_open=False):
+    result = tasks
+    if search:
+        needle = search.casefold()
+        result = [t for t in result if needle in t["title"].casefold()]
+    if only_open:
+        result = [t for t in result if not t["done"]]
+    return result
 
 
 PRIORITY_ORDER = {"high": 0, "normal": 1, "low": 2}
@@ -85,13 +101,19 @@ def main(argv=None):
     p_add.add_argument("title", nargs="+")
     p_add.add_argument("-p", "--priority", choices=PRIORITY_ORDER, default="normal")
 
-    sub.add_parser("list", help="list all tasks")
+    p_list = sub.add_parser("list", help="list all tasks")
+    p_list.add_argument("-s", "--search", help="only show tasks containing this text")
+    p_list.add_argument("--open", action="store_true", help="hide completed tasks")
 
     p_done = sub.add_parser("done", help="mark a task as done")
     p_done.add_argument("id", type=int)
 
     p_rm = sub.add_parser("rm", help="remove a task")
     p_rm.add_argument("id", type=int)
+
+    p_edit = sub.add_parser("edit", help="change a task's title")
+    p_edit.add_argument("id", type=int)
+    p_edit.add_argument("title", nargs="+")
 
     sub.add_parser("clear", help="remove all completed tasks")
 
@@ -103,9 +125,10 @@ def main(argv=None):
         save_tasks(args.db, tasks)
         print(f"Added task {task['id']}: {task['title']}")
     elif args.command == "list":
-        if not tasks:
-            print("No tasks yet.")
-        for task in sort_tasks(tasks):
+        shown = filter_tasks(tasks, args.search, args.open)
+        if not shown:
+            print("No tasks found." if tasks else "No tasks yet.")
+        for task in sort_tasks(shown):
             print(format_task(task))
     elif args.command == "done":
         task = complete_task(tasks, args.id)
@@ -115,6 +138,10 @@ def main(argv=None):
         task = remove_task(tasks, args.id)
         save_tasks(args.db, tasks)
         print(f"Removed: {task['title']}")
+    elif args.command == "edit":
+        task = rename_task(tasks, args.id, " ".join(args.title))
+        save_tasks(args.db, tasks)
+        print(f"Updated task {task['id']}: {task['title']}")
     elif args.command == "clear":
         removed = clear_done(tasks)
         save_tasks(args.db, tasks)

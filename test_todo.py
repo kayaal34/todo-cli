@@ -48,3 +48,20 @@ def test_sort_puts_high_priority_open_tasks_first():
     todo.add_task(tasks, "finished", "high")
     todo.complete_task(tasks, 3)
     assert [t["title"] for t in todo.sort_tasks(tasks)] == ["urgent", "low", "finished"]
+
+
+def test_rename_task():
+    tasks = []
+    todo.add_task(tasks, "old")
+    todo.rename_task(tasks, 1, "new")
+    assert tasks[0]["title"] == "new"
+
+
+def test_filter_by_search_and_open():
+    tasks = []
+    todo.add_task(tasks, "Buy milk")
+    todo.add_task(tasks, "buy bread")
+    todo.add_task(tasks, "Call mom")
+    todo.complete_task(tasks, 2)
+    assert [t["id"] for t in todo.filter_tasks(tasks, "BUY")] == [1, 2]
+    assert [t["id"] for t in todo.filter_tasks(tasks, "buy", only_open=True)] == [1]

@@ -9,6 +9,8 @@ Tasks are stored in a JSON file (`~/.todo.json` by default).
 python todo.py add Buy milk
 python todo.py add -p high Pay rent   # priorities: high, normal, low
 python todo.py list
+python todo.py list --search milk --open
+python todo.py edit 1 Buy oat milk
 python todo.py done 1
 python todo.py rm 2
 python todo.py clear        # remove all completed tasks
