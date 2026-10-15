@@ -52,6 +52,12 @@ def remove_task(tasks, task_id):
     return task
 
 
+def rename_task(tasks, task_id, title):
+    task = find_task(tasks, task_id)
+    task["title"] = title
+    return task
+
+
 def clear_done(tasks):
     remaining = [t for t in tasks if not t["done"]]
     removed = len(tasks) - len(remaining)
@@ -93,6 +99,10 @@ def main(argv=None):
     p_rm = sub.add_parser("rm", help="remove a task")
     p_rm.add_argument("id", type=int)
 
+    p_edit = sub.add_parser("edit", help="change a task's title")
+    p_edit.add_argument("id", type=int)
+    p_edit.add_argument("title", nargs="+")
+
     sub.add_parser("clear", help="remove all completed tasks")
 
     args = parser.parse_args(argv)
@@ -115,6 +125,10 @@ def main(argv=None):
         task = remove_task(tasks, args.id)
         save_tasks(args.db, tasks)
         print(f"Removed: {task['title']}")
+    elif args.command == "edit":
+        task = rename_task(tasks, args.id, " ".join(args.title))
+        save_tasks(args.db, tasks)
+        print(f"Updated task {task['id']}: {task['title']}")
     elif args.command == "clear":
         removed = clear_done(tasks)
         save_tasks(args.db, tasks)
