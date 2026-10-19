@@ -65,3 +65,17 @@ def test_filter_by_search_and_open():
     todo.complete_task(tasks, 2)
     assert [t["id"] for t in todo.filter_tasks(tasks, "BUY")] == [1, 2]
     assert [t["id"] for t in todo.filter_tasks(tasks, "buy", only_open=True)] == [1]
+
+
+def test_due_date_and_overdue():
+    from datetime import date
+
+    tasks = []
+    todo.add_task(tasks, "pay rent", due=date(2026, 10, 1))
+    todo.add_task(tasks, "later", due=date(2026, 12, 1))
+    todo.add_task(tasks, "no date")
+    today = date(2026, 10, 19)
+    assert [todo.is_overdue(t, today) for t in tasks] == [True, False, False]
+    assert "OVERDUE" in todo.format_task(tasks[0], today)
+    todo.complete_task(tasks, 1)
+    assert not todo.is_overdue(tasks[0], today)

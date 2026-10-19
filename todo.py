@@ -2,7 +2,7 @@
 
 import argparse
 import json
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 
 DEFAULT_DB = Path.home() / ".todo.json"
@@ -20,13 +20,14 @@ def save_tasks(db_path, tasks):
         json.dump(tasks, f, indent=2, ensure_ascii=False)
 
 
-def add_task(tasks, title, priority="normal"):
+def add_task(tasks, title, priority="normal", due=None):
     next_id = max((t["id"] for t in tasks), default=0) + 1
     task = {
         "id": next_id,
         "title": title,
         "done": False,
         "priority": priority,
+        "due": due.isoformat() if due else None,
         "created": datetime.now().isoformat(timespec="seconds"),
     }
     tasks.append(task)
@@ -86,10 +87,18 @@ def sort_tasks(tasks):
     )
 
 
-def format_task(task):
+def is_overdue(task, today=None):
+    due = task.get("due")
+    return bool(due) and not task["done"] and date.fromisoformat(due) < (today or date.today())
+
+
+def format_task(task, today=None):
     mark = "x" if task["done"] else " "
     flag = {"high": "!", "low": "-"}.get(task.get("priority", "normal"), " ")
-    return f"[{mark}] {task['id']:>3} {flag} {task['title']}"
+    line = f"[{mark}] {task['id']:>3} {flag} {task['title']}"
+    if task.get("due"):
+        line += f"  (due {task['due']}{', OVERDUE' if is_overdue(task, today) else ''})"
+    return line
 
 
 def main(argv=None):
@@ -100,10 +109,12 @@ def main(argv=None):
     p_add = sub.add_parser("add", help="add a new task")
     p_add.add_argument("title", nargs="+")
     p_add.add_argument("-p", "--priority", choices=PRIORITY_ORDER, default="normal")
+    p_add.add_argument("-d", "--due", type=date.fromisoformat, help="due date as YYYY-MM-DD")
 
     p_list = sub.add_parser("list", help="list all tasks")
     p_list.add_argument("-s", "--search", help="only show tasks containing this text")
     p_list.add_argument("--open", action="store_true", help="hide completed tasks")
+    p_list.add_argument("--overdue", action="store_true", help="only show overdue tasks")
 
     p_done = sub.add_parser("done", help="mark a task as done")
     p_done.add_argument("id", type=int)
@@ -121,11 +132,13 @@ def main(argv=None):
     tasks = load_tasks(args.db)
 
     if args.command == "add":
-        task = add_task(tasks, " ".join(args.title), args.priority)
+        task = add_task(tasks, " ".join(args.title), args.priority, args.due)
         save_tasks(args.db, tasks)
         print(f"Added task {task['id']}: {task['title']}")
     elif args.command == "list":
         shown = filter_tasks(tasks, args.search, args.open)
+        if args.overdue:
+            shown = [t for t in shown if is_overdue(t)]
         if not shown:
             print("No tasks found." if tasks else "No tasks yet.")
         for task in sort_tasks(shown):
