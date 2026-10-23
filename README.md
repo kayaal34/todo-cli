@@ -18,6 +18,13 @@ python todo.py rm 2
 python todo.py clear        # remove all completed tasks
 ```
 
+### Export
+
+```bash
+python todo.py export                 # Markdown checklist
+python todo.py export -f csv -o tasks.csv
+```
+
 Use `--db path/to/file.json` to keep separate lists.
 
 ## Running tests

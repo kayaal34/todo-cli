@@ -79,3 +79,30 @@ def test_due_date_and_overdue():
     assert "OVERDUE" in todo.format_task(tasks[0], today)
     todo.complete_task(tasks, 1)
     assert not todo.is_overdue(tasks[0], today)
+
+
+def test_export_markdown_and_csv():
+    from datetime import date
+
+    tasks = []
+    todo.add_task(tasks, "Write report", "high", date(2026, 11, 1))
+    todo.add_task(tasks, "Buy milk")
+    todo.complete_task(tasks, 2)
+    assert todo.export_markdown(tasks).splitlines() == [
+        "- [ ] Write report (high, due 2026-11-01)",
+        "- [x] Buy milk",
+    ]
+    rows = todo.export_csv(tasks).splitlines()
+    assert rows[0] == "id,title,done,priority,due,created"
+    assert rows[1].startswith("1,Write report,False,high,2026-11-01,")
+    assert todo.export_markdown([]) == ""
+
+
+def test_cli_export_to_file(tmp_path, capsys):
+    db = tmp_path / "tasks.json"
+    out = tmp_path / "tasks.md"
+    todo.main(["--db", str(db), "add", "Plan trip"])
+    todo.main(["--db", str(db), "export", "-o", str(out)])
+    assert out.read_text(encoding="utf-8") == "- [ ] Plan trip\n"
+    todo.main(["--db", str(db), "export", "--format", "csv"])
+    assert "Plan trip" in capsys.readouterr().out

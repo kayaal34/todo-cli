@@ -1,6 +1,8 @@
 """A tiny command-line todo manager that stores tasks in a JSON file."""
 
 import argparse
+import csv
+import io
 import json
 from datetime import date, datetime
 from pathlib import Path
@@ -101,6 +103,33 @@ def format_task(task, today=None):
     return line
 
 
+def export_markdown(tasks):
+    """Render tasks as a Markdown checklist, open tasks first."""
+    lines = []
+    for task in sort_tasks(tasks):
+        mark = "x" if task["done"] else " "
+        extras = []
+        if task.get("priority", "normal") != "normal":
+            extras.append(task["priority"])
+        if task.get("due"):
+            extras.append(f"due {task['due']}")
+        suffix = f" ({', '.join(extras)})" if extras else ""
+        lines.append(f"- [{mark}] {task['title']}{suffix}")
+    return "\n".join(lines) + ("\n" if lines else "")
+
+
+EXPORT_FIELDS = ["id", "title", "done", "priority", "due", "created"]
+
+
+def export_csv(tasks):
+    buf = io.StringIO()
+    writer = csv.DictWriter(buf, fieldnames=EXPORT_FIELDS, extrasaction="ignore", lineterminator="\n")
+    writer.writeheader()
+    for task in sort_tasks(tasks):
+        writer.writerow({field: task.get(field, "") for field in EXPORT_FIELDS})
+    return buf.getvalue()
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Simple todo list")
     parser.add_argument("--db", type=Path, default=DEFAULT_DB, help="path to the JSON file")
@@ -127,6 +156,10 @@ def main(argv=None):
     p_edit.add_argument("title", nargs="+")
 
     sub.add_parser("clear", help="remove all completed tasks")
+
+    p_export = sub.add_parser("export", help="print tasks as Markdown or CSV")
+    p_export.add_argument("-f", "--format", choices=["md", "csv"], default="md")
+    p_export.add_argument("-o", "--output", type=Path, help="write to a file instead of stdout")
 
     args = parser.parse_args(argv)
     tasks = load_tasks(args.db)
@@ -159,6 +192,14 @@ def main(argv=None):
         removed = clear_done(tasks)
         save_tasks(args.db, tasks)
         print(f"Cleared {removed} completed task(s)")
+
+    elif args.command == "export":
+        text = export_markdown(tasks) if args.format == "md" else export_csv(tasks)
+        if args.output:
+            args.output.write_text(text, encoding="utf-8")
+            print(f"Exported {len(tasks)} task(s) to {args.output}")
+        else:
+            print(text, end="")
 
 
 if __name__ == "__main__":
