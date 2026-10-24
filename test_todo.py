@@ -93,8 +93,8 @@ def test_export_markdown_and_csv():
         "- [x] Buy milk",
     ]
     rows = todo.export_csv(tasks).splitlines()
-    assert rows[0] == "id,title,done,priority,due,created"
-    assert rows[1].startswith("1,Write report,False,high,2026-11-01,")
+    assert rows[0] == "id,title,done,priority,due,every,created"
+    assert rows[1].startswith("1,Write report,False,high,2026-11-01,,")
     assert todo.export_markdown([]) == ""
 
 
@@ -106,3 +106,56 @@ def test_cli_export_to_file(tmp_path, capsys):
     assert out.read_text(encoding="utf-8") == "- [ ] Plan trip\n"
     todo.main(["--db", str(db), "export", "--format", "csv"])
     assert "Plan trip" in capsys.readouterr().out
+
+
+def test_next_due():
+    from datetime import date
+
+    today = date(2026, 10, 24)
+    assert todo.next_due("2026-10-25", "daily", today) == date(2026, 10, 26)
+    assert todo.next_due("2026-10-20", "weekly", today) == date(2026, 10, 27)  # missed one is skipped
+    assert todo.next_due(None, "weekly", today) == date(2026, 10, 31)
+    assert todo.next_due("2026-01-31", "monthly", date(2026, 1, 1)) == date(2026, 2, 28)
+    assert todo.next_due("2026-12-15", "monthly", today) == date(2027, 1, 15)
+    assert todo.next_due("2026-08-31", "monthly", today) == date(2026, 10, 31)
+
+
+def test_completing_repeating_task_adds_next_occurrence():
+    from datetime import date
+
+    tasks = []
+    todo.add_task(tasks, "Pay rent", "high", date(2026, 11, 1), "monthly")
+    done, follow_up = todo.complete_task(tasks, 1, today=date(2026, 10, 30))
+    assert done["done"] is True
+    assert follow_up == tasks[1]
+    assert (follow_up["title"], follow_up["priority"], follow_up["due"], follow_up["every"]) == (
+        "Pay rent", "high", "2026-12-01", "monthly")
+    assert "[repeats monthly]" in todo.format_task(follow_up)
+    assert todo.complete_task(tasks, 2, today=date(2026, 10, 30))[1]["due"] == "2027-01-01"
+
+
+def test_completing_normal_task_adds_nothing():
+    tasks = []
+    todo.add_task(tasks, "once")
+    assert todo.complete_task(tasks, 1)[1] is None
+    assert len(tasks) == 1
+
+
+def test_monthly_task_on_the_31st_does_not_drift():
+    from datetime import date
+
+    tasks = []
+    todo.add_task(tasks, "Report", due=date(2026, 8, 31), every="monthly")
+    dues = []
+    for task_id, today in [(1, date(2026, 8, 31)), (2, date(2026, 9, 30)), (3, date(2026, 10, 31))]:
+        dues.append(todo.complete_task(tasks, task_id, today=today)[1]["due"])
+    assert dues == ["2026-09-30", "2026-10-31", "2026-11-30"]
+
+
+def test_export_shows_repeat():
+    from datetime import date
+
+    tasks = []
+    todo.add_task(tasks, "Water plants", due=date(2026, 11, 1), every="weekly")
+    assert todo.export_markdown(tasks) == "- [ ] Water plants (due 2026-11-01, repeats weekly)\n"
+    assert ",weekly," in todo.export_csv(tasks).splitlines()[1]

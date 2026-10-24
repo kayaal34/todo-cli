@@ -1,10 +1,11 @@
 """A tiny command-line todo manager that stores tasks in a JSON file."""
 
 import argparse
+import calendar
 import csv
 import io
 import json
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 DEFAULT_DB = Path.home() / ".todo.json"
@@ -22,7 +23,10 @@ def save_tasks(db_path, tasks):
         json.dump(tasks, f, indent=2, ensure_ascii=False)
 
 
-def add_task(tasks, title, priority="normal", due=None):
+REPEAT_STEPS = {"daily": timedelta(days=1), "weekly": timedelta(weeks=1)}
+
+
+def add_task(tasks, title, priority="normal", due=None, every=None):
     next_id = max((t["id"] for t in tasks), default=0) + 1
     task = {
         "id": next_id,
@@ -30,6 +34,7 @@ def add_task(tasks, title, priority="normal", due=None):
         "done": False,
         "priority": priority,
         "due": due.isoformat() if due else None,
+        "every": every,
         "created": datetime.now().isoformat(timespec="seconds"),
     }
     tasks.append(task)
@@ -43,10 +48,47 @@ def find_task(tasks, task_id):
     raise SystemExit(f"No task with id {task_id}")
 
 
-def complete_task(tasks, task_id):
+def add_months(day, months):
+    """The same day *months* later, clamped to the month's length (Jan 31 -> Feb 28)."""
+    index = day.month - 1 + months
+    year, month = day.year + index // 12, index % 12 + 1
+    return date(year, month, min(day.day, calendar.monthrange(year, month)[1]))
+
+
+def next_due(due, every, today=None, anchor=None):
+    """Next due date of a repeating task: the first repeat of *anchor* (the
+    first due date, defaulting to *due*) after both *due* and today, so missed
+    repeats don't pile up."""
+    today = today or date.today()
+    start = date.fromisoformat(anchor or due) if (anchor or due) else today
+    after = max(today, date.fromisoformat(due)) if due else today
+    steps = 1
+    while True:
+        # Count steps from the start date so a monthly task on the 31st
+        # comes back to the 31st after a shorter month instead of drifting.
+        if every == "monthly":
+            result = add_months(start, steps)
+        else:
+            result = start + REPEAT_STEPS[every] * steps
+        if result > after:
+            return result
+        steps += 1
+
+
+def complete_task(tasks, task_id, today=None):
+    """Mark a task done. A repeating task gets a fresh copy with the next due date,
+    which is returned as the second value (None otherwise)."""
     task = find_task(tasks, task_id)
     task["done"] = True
-    return task
+    follow_up = None
+    if task.get("every"):
+        anchor = task.get("repeat_from") or task.get("due")
+        follow_up = add_task(
+            tasks, task["title"], task.get("priority", "normal"),
+            next_due(task.get("due"), task["every"], today, anchor), task["every"],
+        )
+        follow_up["repeat_from"] = anchor
+    return task, follow_up
 
 
 def remove_task(tasks, task_id):
@@ -100,6 +142,8 @@ def format_task(task, today=None):
     line = f"[{mark}] {task['id']:>3} {flag} {task['title']}"
     if task.get("due"):
         line += f"  (due {task['due']}{', OVERDUE' if is_overdue(task, today) else ''})"
+    if task.get("every"):
+        line += f"  [repeats {task['every']}]"
     return line
 
 
@@ -113,12 +157,14 @@ def export_markdown(tasks):
             extras.append(task["priority"])
         if task.get("due"):
             extras.append(f"due {task['due']}")
+        if task.get("every"):
+            extras.append(f"repeats {task['every']}")
         suffix = f" ({', '.join(extras)})" if extras else ""
         lines.append(f"- [{mark}] {task['title']}{suffix}")
     return "\n".join(lines) + ("\n" if lines else "")
 
 
-EXPORT_FIELDS = ["id", "title", "done", "priority", "due", "created"]
+EXPORT_FIELDS = ["id", "title", "done", "priority", "due", "every", "created"]
 
 
 def export_csv(tasks):
@@ -139,6 +185,8 @@ def main(argv=None):
     p_add.add_argument("title", nargs="+")
     p_add.add_argument("-p", "--priority", choices=PRIORITY_ORDER, default="normal")
     p_add.add_argument("-d", "--due", type=date.fromisoformat, help="due date as YYYY-MM-DD")
+    p_add.add_argument("-e", "--every", choices=["daily", "weekly", "monthly"],
+                       help="repeat the task: completing it adds the next occurrence")
 
     p_list = sub.add_parser("list", help="list all tasks")
     p_list.add_argument("-s", "--search", help="only show tasks containing this text")
@@ -165,7 +213,7 @@ def main(argv=None):
     tasks = load_tasks(args.db)
 
     if args.command == "add":
-        task = add_task(tasks, " ".join(args.title), args.priority, args.due)
+        task = add_task(tasks, " ".join(args.title), args.priority, args.due, args.every)
         save_tasks(args.db, tasks)
         print(f"Added task {task['id']}: {task['title']}")
     elif args.command == "list":
@@ -177,9 +225,11 @@ def main(argv=None):
         for task in sort_tasks(shown):
             print(format_task(task))
     elif args.command == "done":
-        task = complete_task(tasks, args.id)
+        task, follow_up = complete_task(tasks, args.id)
         save_tasks(args.db, tasks)
         print(f"Completed: {task['title']}")
+        if follow_up:
+            print(f"Next {follow_up['every']} occurrence added as task {follow_up['id']}, due {follow_up['due']}")
     elif args.command == "rm":
         task = remove_task(tasks, args.id)
         save_tasks(args.db, tasks)
