@@ -93,8 +93,8 @@ def test_export_markdown_and_csv():
         "- [x] Buy milk",
     ]
     rows = todo.export_csv(tasks).splitlines()
-    assert rows[0] == "id,title,done,priority,due,created"
-    assert rows[1].startswith("1,Write report,False,high,2026-11-01,")
+    assert rows[0] == "id,title,done,priority,due,every,created"
+    assert rows[1].startswith("1,Write report,False,high,2026-11-01,,")
     assert todo.export_markdown([]) == ""
 
 
@@ -150,3 +150,12 @@ def test_monthly_task_on_the_31st_does_not_drift():
     for task_id, today in [(1, date(2026, 8, 31)), (2, date(2026, 9, 30)), (3, date(2026, 10, 31))]:
         dues.append(todo.complete_task(tasks, task_id, today=today)[1]["due"])
     assert dues == ["2026-09-30", "2026-10-31", "2026-11-30"]
+
+
+def test_export_shows_repeat():
+    from datetime import date
+
+    tasks = []
+    todo.add_task(tasks, "Water plants", due=date(2026, 11, 1), every="weekly")
+    assert todo.export_markdown(tasks) == "- [ ] Water plants (due 2026-11-01, repeats weekly)\n"
+    assert ",weekly," in todo.export_csv(tasks).splitlines()[1]

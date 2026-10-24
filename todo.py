@@ -157,12 +157,14 @@ def export_markdown(tasks):
             extras.append(task["priority"])
         if task.get("due"):
             extras.append(f"due {task['due']}")
+        if task.get("every"):
+            extras.append(f"repeats {task['every']}")
         suffix = f" ({', '.join(extras)})" if extras else ""
         lines.append(f"- [{mark}] {task['title']}{suffix}")
     return "\n".join(lines) + ("\n" if lines else "")
 
 
-EXPORT_FIELDS = ["id", "title", "done", "priority", "due", "created"]
+EXPORT_FIELDS = ["id", "title", "done", "priority", "due", "every", "created"]
 
 
 def export_csv(tasks):
