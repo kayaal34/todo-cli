@@ -93,8 +93,8 @@ def test_export_markdown_and_csv():
         "- [x] Buy milk",
     ]
     rows = todo.export_csv(tasks).splitlines()
-    assert rows[0] == "id,title,done,priority,due,every,created"
-    assert rows[1].startswith("1,Write report,False,high,2026-11-01,,")
+    assert rows[0] == "id,title,done,priority,due,every,tags,created"
+    assert rows[1].startswith("1,Write report,False,high,2026-11-01,,,")
     assert todo.export_markdown([]) == ""
 
 
@@ -193,3 +193,15 @@ def test_cli_tags(tmp_path, capsys):
     todo.main(["--db", str(db), "list", "--tag", "work"])
     out = capsys.readouterr().out
     assert "Write report" in out and "#work #deep" in out and "Buy milk" not in out
+
+
+def test_tag_counts_and_export():
+    tasks = []
+    todo.add_task(tasks, "a", tags=["work", "urgent"])
+    todo.add_task(tasks, "b", tags=["work"])
+    todo.add_task(tasks, "c", tags=["home"])
+    todo.complete_task(tasks, 3)
+    assert todo.tag_counts(tasks) == [("work", 2), ("urgent", 1)]
+    assert todo.tag_counts(tasks, only_open=False) == [("work", 2), ("home", 1), ("urgent", 1)]
+    assert "- [ ] a (#work, #urgent)" in todo.export_markdown(tasks)
+    assert ",work urgent," in todo.export_csv(tasks)

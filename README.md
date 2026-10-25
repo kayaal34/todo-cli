@@ -19,6 +19,16 @@ python todo.py rm 2
 python todo.py clear        # remove all completed tasks
 ```
 
+### Tags
+
+```bash
+python todo.py add -t work -t urgent Fix the login bug
+python todo.py list --tag work
+python todo.py tags          # tags of open tasks with counts (--all includes done ones)
+```
+
+Tags are case-insensitive and a leading `#` is ignored, so `Work`, `work` and `#work` are the same tag.
+
 ### Repeating tasks
 
 `add --every daily|weekly|monthly` makes a task repeat. Completing it with `done`

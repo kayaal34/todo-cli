@@ -1,6 +1,7 @@
 """A tiny command-line todo manager that stores tasks in a JSON file."""
 
 import argparse
+from collections import Counter
 import calendar
 import csv
 import io
@@ -135,6 +136,14 @@ def filter_tasks(tasks, search=None, only_open=False, tag=None):
     return result
 
 
+def tag_counts(tasks, only_open=True):
+    """How many (open) tasks carry each tag, most used first."""
+    counts = Counter(
+        tag for t in tasks if not (only_open and t["done"]) for tag in t.get("tags", [])
+    )
+    return sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))
+
+
 PRIORITY_ORDER = {"high": 0, "normal": 1, "low": 2}
 
 
@@ -176,12 +185,13 @@ def export_markdown(tasks):
             extras.append(f"due {task['due']}")
         if task.get("every"):
             extras.append(f"repeats {task['every']}")
+        extras.extend(f"#{tag}" for tag in task.get("tags", []))
         suffix = f" ({', '.join(extras)})" if extras else ""
         lines.append(f"- [{mark}] {task['title']}{suffix}")
     return "\n".join(lines) + ("\n" if lines else "")
 
 
-EXPORT_FIELDS = ["id", "title", "done", "priority", "due", "every", "created"]
+EXPORT_FIELDS = ["id", "title", "done", "priority", "due", "every", "tags", "created"]
 
 
 def export_csv(tasks):
@@ -189,7 +199,9 @@ def export_csv(tasks):
     writer = csv.DictWriter(buf, fieldnames=EXPORT_FIELDS, extrasaction="ignore", lineterminator="\n")
     writer.writeheader()
     for task in sort_tasks(tasks):
-        writer.writerow({field: task.get(field, "") for field in EXPORT_FIELDS})
+        row = {field: task.get(field, "") for field in EXPORT_FIELDS}
+        row["tags"] = " ".join(task.get("tags", []))
+        writer.writerow(row)
     return buf.getvalue()
 
 
@@ -222,6 +234,9 @@ def main(argv=None):
     p_edit = sub.add_parser("edit", help="change a task's title")
     p_edit.add_argument("id", type=int)
     p_edit.add_argument("title", nargs="+")
+
+    p_tags = sub.add_parser("tags", help="list tags with the number of tasks using them")
+    p_tags.add_argument("--all", action="store_true", help="count completed tasks too")
 
     sub.add_parser("clear", help="remove all completed tasks")
 
@@ -263,6 +278,12 @@ def main(argv=None):
         save_tasks(args.db, tasks)
         print(f"Cleared {removed} completed task(s)")
 
+    elif args.command == "tags":
+        counts = tag_counts(tasks, only_open=not args.all)
+        if not counts:
+            print("No tags yet. Use: add -t <tag> ...")
+        for tag, count in counts:
+            print(f"  #{tag:<15} {count}")
     elif args.command == "export":
         text = export_markdown(tasks) if args.format == "md" else export_csv(tasks)
         if args.output:
