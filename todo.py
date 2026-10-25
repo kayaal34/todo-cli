@@ -1,6 +1,7 @@
 """A tiny command-line todo manager that stores tasks in a JSON file."""
 
 import argparse
+from collections import Counter
 import calendar
 import csv
 import io
@@ -26,7 +27,17 @@ def save_tasks(db_path, tasks):
 REPEAT_STEPS = {"daily": timedelta(days=1), "weekly": timedelta(weeks=1)}
 
 
-def add_task(tasks, title, priority="normal", due=None, every=None):
+def normalize_tags(tags):
+    """Lower-case, strip a leading # and drop duplicates, keeping order."""
+    seen = []
+    for tag in tags or []:
+        tag = tag.strip().lstrip("#").lower()
+        if tag and tag not in seen:
+            seen.append(tag)
+    return seen
+
+
+def add_task(tasks, title, priority="normal", due=None, every=None, tags=None):
     next_id = max((t["id"] for t in tasks), default=0) + 1
     task = {
         "id": next_id,
@@ -35,6 +46,7 @@ def add_task(tasks, title, priority="normal", due=None, every=None):
         "priority": priority,
         "due": due.isoformat() if due else None,
         "every": every,
+        "tags": normalize_tags(tags),
         "created": datetime.now().isoformat(timespec="seconds"),
     }
     tasks.append(task)
@@ -86,6 +98,7 @@ def complete_task(tasks, task_id, today=None):
         follow_up = add_task(
             tasks, task["title"], task.get("priority", "normal"),
             next_due(task.get("due"), task["every"], today, anchor), task["every"],
+            task.get("tags"),
         )
         follow_up["repeat_from"] = anchor
     return task, follow_up
@@ -110,14 +123,25 @@ def clear_done(tasks):
     return removed
 
 
-def filter_tasks(tasks, search=None, only_open=False):
+def filter_tasks(tasks, search=None, only_open=False, tag=None):
     result = tasks
+    if tag:
+        wanted = normalize_tags([tag])[0]
+        result = [t for t in result if wanted in t.get("tags", [])]
     if search:
         needle = search.casefold()
         result = [t for t in result if needle in t["title"].casefold()]
     if only_open:
         result = [t for t in result if not t["done"]]
     return result
+
+
+def tag_counts(tasks, only_open=True):
+    """How many (open) tasks carry each tag, most used first."""
+    counts = Counter(
+        tag for t in tasks if not (only_open and t["done"]) for tag in t.get("tags", [])
+    )
+    return sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))
 
 
 PRIORITY_ORDER = {"high": 0, "normal": 1, "low": 2}
@@ -144,6 +168,8 @@ def format_task(task, today=None):
         line += f"  (due {task['due']}{', OVERDUE' if is_overdue(task, today) else ''})"
     if task.get("every"):
         line += f"  [repeats {task['every']}]"
+    if task.get("tags"):
+        line += "  " + " ".join(f"#{tag}" for tag in task["tags"])
     return line
 
 
@@ -159,12 +185,13 @@ def export_markdown(tasks):
             extras.append(f"due {task['due']}")
         if task.get("every"):
             extras.append(f"repeats {task['every']}")
+        extras.extend(f"#{tag}" for tag in task.get("tags", []))
         suffix = f" ({', '.join(extras)})" if extras else ""
         lines.append(f"- [{mark}] {task['title']}{suffix}")
     return "\n".join(lines) + ("\n" if lines else "")
 
 
-EXPORT_FIELDS = ["id", "title", "done", "priority", "due", "every", "created"]
+EXPORT_FIELDS = ["id", "title", "done", "priority", "due", "every", "tags", "created"]
 
 
 def export_csv(tasks):
@@ -172,7 +199,9 @@ def export_csv(tasks):
     writer = csv.DictWriter(buf, fieldnames=EXPORT_FIELDS, extrasaction="ignore", lineterminator="\n")
     writer.writeheader()
     for task in sort_tasks(tasks):
-        writer.writerow({field: task.get(field, "") for field in EXPORT_FIELDS})
+        row = {field: task.get(field, "") for field in EXPORT_FIELDS}
+        row["tags"] = " ".join(task.get("tags", []))
+        writer.writerow(row)
     return buf.getvalue()
 
 
@@ -185,6 +214,8 @@ def main(argv=None):
     p_add.add_argument("title", nargs="+")
     p_add.add_argument("-p", "--priority", choices=PRIORITY_ORDER, default="normal")
     p_add.add_argument("-d", "--due", type=date.fromisoformat, help="due date as YYYY-MM-DD")
+    p_add.add_argument("-t", "--tag", action="append", dest="tags", default=[],
+                       help="tag the task (repeatable): -t work -t urgent")
     p_add.add_argument("-e", "--every", choices=["daily", "weekly", "monthly"],
                        help="repeat the task: completing it adds the next occurrence")
 
@@ -192,6 +223,7 @@ def main(argv=None):
     p_list.add_argument("-s", "--search", help="only show tasks containing this text")
     p_list.add_argument("--open", action="store_true", help="hide completed tasks")
     p_list.add_argument("--overdue", action="store_true", help="only show overdue tasks")
+    p_list.add_argument("-t", "--tag", help="only show tasks with this tag")
 
     p_done = sub.add_parser("done", help="mark a task as done")
     p_done.add_argument("id", type=int)
@@ -203,6 +235,9 @@ def main(argv=None):
     p_edit.add_argument("id", type=int)
     p_edit.add_argument("title", nargs="+")
 
+    p_tags = sub.add_parser("tags", help="list tags with the number of tasks using them")
+    p_tags.add_argument("--all", action="store_true", help="count completed tasks too")
+
     sub.add_parser("clear", help="remove all completed tasks")
 
     p_export = sub.add_parser("export", help="print tasks as Markdown or CSV")
@@ -213,11 +248,11 @@ def main(argv=None):
     tasks = load_tasks(args.db)
 
     if args.command == "add":
-        task = add_task(tasks, " ".join(args.title), args.priority, args.due, args.every)
+        task = add_task(tasks, " ".join(args.title), args.priority, args.due, args.every, args.tags)
         save_tasks(args.db, tasks)
         print(f"Added task {task['id']}: {task['title']}")
     elif args.command == "list":
-        shown = filter_tasks(tasks, args.search, args.open)
+        shown = filter_tasks(tasks, args.search, args.open, args.tag)
         if args.overdue:
             shown = [t for t in shown if is_overdue(t)]
         if not shown:
@@ -243,6 +278,12 @@ def main(argv=None):
         save_tasks(args.db, tasks)
         print(f"Cleared {removed} completed task(s)")
 
+    elif args.command == "tags":
+        counts = tag_counts(tasks, only_open=not args.all)
+        if not counts:
+            print("No tags yet. Use: add -t <tag> ...")
+        for tag, count in counts:
+            print(f"  #{tag:<15} {count}")
     elif args.command == "export":
         text = export_markdown(tasks) if args.format == "md" else export_csv(tasks)
         if args.output:
