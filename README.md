@@ -15,6 +15,7 @@ python todo.py list
 python todo.py list --search milk --open
 python todo.py edit 1 Buy oat milk
 python todo.py done 1
+python todo.py reopen 1     # undo "done" (also drops the next occurrence of a repeating task)
 python todo.py rm 2
 python todo.py clear        # remove all completed tasks
 ```
