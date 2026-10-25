@@ -159,3 +159,37 @@ def test_export_shows_repeat():
     todo.add_task(tasks, "Water plants", due=date(2026, 11, 1), every="weekly")
     assert todo.export_markdown(tasks) == "- [ ] Water plants (due 2026-11-01, repeats weekly)\n"
     assert ",weekly," in todo.export_csv(tasks).splitlines()[1]
+
+
+def test_tags_are_normalized_and_filterable():
+    tasks = []
+    todo.add_task(tasks, "Write report", tags=["Work", "#urgent", "work"])
+    todo.add_task(tasks, "Buy milk", tags=["home"])
+    assert tasks[0]["tags"] == ["work", "urgent"]
+    assert [t["title"] for t in todo.filter_tasks(tasks, tag="#WORK")] == ["Write report"]
+    assert todo.filter_tasks(tasks, tag="garden") == []
+    assert todo.format_task(tasks[0]).endswith("#work #urgent")
+
+
+def test_old_tasks_without_tags_still_work():
+    old = {"id": 1, "title": "legacy", "done": False}
+    assert todo.filter_tasks([old], tag="work") == []
+    assert "#" not in todo.format_task(old)
+
+
+def test_repeating_task_keeps_tags():
+    from datetime import date
+
+    tasks = []
+    todo.add_task(tasks, "Standup", due=date(2026, 10, 26), every="daily", tags=["work"])
+    assert todo.complete_task(tasks, 1, today=date(2026, 10, 26))[1]["tags"] == ["work"]
+
+
+def test_cli_tags(tmp_path, capsys):
+    db = tmp_path / "tasks.json"
+    todo.main(["--db", str(db), "add", "-t", "work", "-t", "deep", "Write", "report"])
+    todo.main(["--db", str(db), "add", "Buy", "milk"])
+    capsys.readouterr()
+    todo.main(["--db", str(db), "list", "--tag", "work"])
+    out = capsys.readouterr().out
+    assert "Write report" in out and "#work #deep" in out and "Buy milk" not in out
