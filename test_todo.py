@@ -205,3 +205,36 @@ def test_tag_counts_and_export():
     assert todo.tag_counts(tasks, only_open=False) == [("work", 2), ("home", 1), ("urgent", 1)]
     assert "- [ ] a (#work, #urgent)" in todo.export_markdown(tasks)
     assert ",work urgent," in todo.export_csv(tasks)
+
+
+def test_reopen_task():
+    tasks = []
+    todo.add_task(tasks, "Write report")
+    todo.complete_task(tasks, 1)
+    task, removed = todo.reopen_task(tasks, 1)
+    assert task["done"] is False and removed is None
+    with pytest.raises(SystemExit):
+        todo.reopen_task(tasks, 1)
+
+
+def test_reopen_repeating_task_removes_its_next_occurrence():
+    from datetime import date
+
+    tasks = []
+    todo.add_task(tasks, "Standup", due=date(2026, 10, 26), every="daily")
+    todo.complete_task(tasks, 1, today=date(2026, 10, 26))
+    assert [t["id"] for t in tasks] == [1, 2]
+    task, removed = todo.reopen_task(tasks, 1)
+    assert removed["id"] == 2 and [t["id"] for t in tasks] == [1]
+    assert "follow_up" not in task
+
+
+def test_reopen_keeps_next_occurrence_that_was_already_done():
+    from datetime import date
+
+    tasks = []
+    todo.add_task(tasks, "Standup", due=date(2026, 10, 26), every="daily")
+    todo.complete_task(tasks, 1, today=date(2026, 10, 26))
+    todo.complete_task(tasks, 2, today=date(2026, 10, 27))
+    assert todo.reopen_task(tasks, 1)[1] is None
+    assert [t["id"] for t in tasks] == [1, 2, 3]

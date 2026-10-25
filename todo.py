@@ -101,7 +101,26 @@ def complete_task(tasks, task_id, today=None):
             task.get("tags"),
         )
         follow_up["repeat_from"] = anchor
+        task["follow_up"] = follow_up["id"]
     return task, follow_up
+
+
+def reopen_task(tasks, task_id):
+    """Mark a completed task as open again. For a repeating task, the next
+    occurrence its completion created is removed too, as long as it is still
+    open. Returns (task, removed_follow_up_or_None)."""
+    task = find_task(tasks, task_id)
+    if not task["done"]:
+        raise SystemExit(f"Task {task_id} is not done")
+    task["done"] = False
+    removed = None
+    follow_id = task.pop("follow_up", None)
+    if follow_id is not None:
+        follow = next((t for t in tasks if t["id"] == follow_id), None)
+        if follow is not None and not follow["done"]:
+            tasks.remove(follow)
+            removed = follow
+    return task, removed
 
 
 def remove_task(tasks, task_id):
@@ -228,6 +247,9 @@ def main(argv=None):
     p_done = sub.add_parser("done", help="mark a task as done")
     p_done.add_argument("id", type=int)
 
+    p_reopen = sub.add_parser("reopen", help="mark a completed task as open again")
+    p_reopen.add_argument("id", type=int)
+
     p_rm = sub.add_parser("rm", help="remove a task")
     p_rm.add_argument("id", type=int)
 
@@ -265,6 +287,12 @@ def main(argv=None):
         print(f"Completed: {task['title']}")
         if follow_up:
             print(f"Next {follow_up['every']} occurrence added as task {follow_up['id']}, due {follow_up['due']}")
+    elif args.command == "reopen":
+        task, removed = reopen_task(tasks, args.id)
+        save_tasks(args.db, tasks)
+        print(f"Reopened: {task['title']}")
+        if removed:
+            print(f"Removed the next occurrence it had created (task {removed['id']})")
     elif args.command == "rm":
         task = remove_task(tasks, args.id)
         save_tasks(args.db, tasks)
