@@ -266,3 +266,17 @@ def test_stats():
     result = todo.stats(tasks, today, days=3)
     assert (result["open"], result["done"], result["overdue"]) == (2, 4, 1)
     assert result["completed_per_day"] == {"2026-10-24": 1, "2026-10-25": 0, "2026-10-26": 2}
+
+
+def test_cli_stats(tmp_path, capsys):
+    db = tmp_path / "tasks.json"
+    todo.main(["--db", str(db), "add", "one"])
+    todo.main(["--db", str(db), "add", "two"])
+    todo.main(["--db", str(db), "done", "1"])
+    capsys.readouterr()
+    todo.main(["--db", str(db), "stats", "-n", "2"])
+    out = capsys.readouterr().out.splitlines()
+    assert out[0] == "Open: 1  Done: 1  Overdue: 0"
+    assert out[-1].endswith("1  #")
+    with pytest.raises(SystemExit):
+        todo.main(["--db", str(db), "stats", "-n", "0"])

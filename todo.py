@@ -276,6 +276,9 @@ def main(argv=None):
     p_edit.add_argument("id", type=int)
     p_edit.add_argument("title", nargs="+")
 
+    p_stats = sub.add_parser("stats", help="open/done counts and tasks completed per day")
+    p_stats.add_argument("-n", "--days", type=int, default=7, help="days to show (default: 7)")
+
     p_tags = sub.add_parser("tags", help="list tags with the number of tasks using them")
     p_tags.add_argument("--all", action="store_true", help="count completed tasks too")
 
@@ -325,6 +328,14 @@ def main(argv=None):
         save_tasks(args.db, tasks)
         print(f"Cleared {removed} completed task(s)")
 
+    elif args.command == "stats":
+        if args.days < 1:
+            raise SystemExit("--days must be at least 1")
+        result = stats(tasks, days=args.days)
+        print(f"Open: {result['open']}  Done: {result['done']}  Overdue: {result['overdue']}")
+        print(f"Completed in the last {args.days} day(s):")
+        for day, count in result["completed_per_day"].items():
+            print(f"  {day}  {count:>3}  {'#' * count}".rstrip())
     elif args.command == "tags":
         counts = tag_counts(tasks, only_open=not args.all)
         if not counts:
