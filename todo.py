@@ -92,6 +92,7 @@ def complete_task(tasks, task_id, today=None):
     which is returned as the second value (None otherwise)."""
     task = find_task(tasks, task_id)
     task["done"] = True
+    task["completed"] = (today or date.today()).isoformat()
     follow_up = None
     if task.get("every"):
         anchor = task.get("repeat_from") or task.get("due")
@@ -113,6 +114,7 @@ def reopen_task(tasks, task_id):
     if not task["done"]:
         raise SystemExit(f"Task {task_id} is not done")
     task["done"] = False
+    task.pop("completed", None)
     removed = None
     follow_id = task.pop("follow_up", None)
     if follow_id is not None:
@@ -161,6 +163,23 @@ def tag_counts(tasks, only_open=True):
         tag for t in tasks if not (only_open and t["done"]) for tag in t.get("tags", [])
     )
     return sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))
+
+
+def stats(tasks, today=None, days=7):
+    """Counts for the summary: open/done/overdue, and tasks completed per day
+    over the last *days* days (oldest first)."""
+    today = today or date.today()
+    window = [(today - timedelta(days=offset)).isoformat() for offset in range(days - 1, -1, -1)]
+    per_day = dict.fromkeys(window, 0)
+    for task in tasks:
+        if task.get("completed") in per_day:
+            per_day[task["completed"]] += 1
+    return {
+        "open": sum(not t["done"] for t in tasks),
+        "done": sum(bool(t["done"]) for t in tasks),
+        "overdue": sum(is_overdue(t, today) for t in tasks),
+        "completed_per_day": per_day,
+    }
 
 
 PRIORITY_ORDER = {"high": 0, "normal": 1, "low": 2}
@@ -257,6 +276,9 @@ def main(argv=None):
     p_edit.add_argument("id", type=int)
     p_edit.add_argument("title", nargs="+")
 
+    p_stats = sub.add_parser("stats", help="open/done counts and tasks completed per day")
+    p_stats.add_argument("-n", "--days", type=int, default=7, help="days to show (default: 7)")
+
     p_tags = sub.add_parser("tags", help="list tags with the number of tasks using them")
     p_tags.add_argument("--all", action="store_true", help="count completed tasks too")
 
@@ -306,6 +328,14 @@ def main(argv=None):
         save_tasks(args.db, tasks)
         print(f"Cleared {removed} completed task(s)")
 
+    elif args.command == "stats":
+        if args.days < 1:
+            raise SystemExit("--days must be at least 1")
+        result = stats(tasks, days=args.days)
+        print(f"Open: {result['open']}  Done: {result['done']}  Overdue: {result['overdue']}")
+        print(f"Completed in the last {args.days} day(s):")
+        for day, count in result["completed_per_day"].items():
+            print(f"  {day}  {count:>3}  {'#' * count}".rstrip())
     elif args.command == "tags":
         counts = tag_counts(tasks, only_open=not args.all)
         if not counts:

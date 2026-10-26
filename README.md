@@ -29,6 +29,19 @@ python todo.py rm 2
 python todo.py clear        # remove all completed tasks
 ```
 
+### Stats
+
+```
+$ todo stats
+Open: 4  Done: 12  Overdue: 1
+Completed in the last 7 day(s):
+  2026-10-20    2  ##
+  2026-10-21    0
+  ...
+```
+
+Completion dates are recorded from now on; tasks completed before this version don't count.
+
 ### Tags
 
 ```bash
