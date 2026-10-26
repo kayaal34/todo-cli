@@ -3,6 +3,15 @@
 A tiny command-line todo manager written in pure Python (no dependencies).
 Tasks are stored in a JSON file (`~/.todo.json` by default).
 
+## Install
+
+```bash
+pip install git+https://github.com/kayaal34/todo-cli
+todo add Buy milk
+```
+
+Or run it straight from a checkout with `python todo.py ...` (no dependencies).
+
 ## Usage
 
 ```bash
