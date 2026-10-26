@@ -238,3 +238,31 @@ def test_reopen_keeps_next_occurrence_that_was_already_done():
     todo.complete_task(tasks, 2, today=date(2026, 10, 27))
     assert todo.reopen_task(tasks, 1)[1] is None
     assert [t["id"] for t in tasks] == [1, 2, 3]
+
+
+def test_completion_date_is_recorded_and_cleared_on_reopen():
+    from datetime import date
+
+    tasks = []
+    todo.add_task(tasks, "a")
+    todo.complete_task(tasks, 1, today=date(2026, 10, 26))
+    assert tasks[0]["completed"] == "2026-10-26"
+    todo.reopen_task(tasks, 1)
+    assert "completed" not in tasks[0]
+
+
+def test_stats():
+    from datetime import date
+
+    today = date(2026, 10, 26)
+    tasks = []
+    for title in "abcde":
+        todo.add_task(tasks, title)
+    todo.add_task(tasks, "late", due=date(2026, 10, 20))
+    todo.complete_task(tasks, 1, today=date(2026, 10, 26))
+    todo.complete_task(tasks, 2, today=date(2026, 10, 26))
+    todo.complete_task(tasks, 3, today=date(2026, 10, 24))
+    todo.complete_task(tasks, 4, today=date(2026, 10, 1))  # outside the window
+    result = todo.stats(tasks, today, days=3)
+    assert (result["open"], result["done"], result["overdue"]) == (2, 4, 1)
+    assert result["completed_per_day"] == {"2026-10-24": 1, "2026-10-25": 0, "2026-10-26": 2}
