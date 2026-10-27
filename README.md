@@ -29,6 +29,20 @@ python todo.py rm 2
 python todo.py clear        # remove all completed tasks
 ```
 
+### Agenda
+
+```
+$ todo agenda
+Overdue
+  [ ]   3 ! Renew passport  (due 2026-10-20, OVERDUE)
+Tue 2026-10-27
+  [ ]   5   Dentist  (due 2026-10-27)
+Fri 2026-10-30
+  [ ]   7   Water plants  (due 2026-10-30)  [repeats weekly]
+```
+
+Shows open tasks due in the next 7 days (`-n` to change), grouped by day, with overdue ones first.
+
 ### Stats
 
 ```

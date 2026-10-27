@@ -165,6 +165,29 @@ def tag_counts(tasks, only_open=True):
     return sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))
 
 
+def agenda(tasks, today=None, days=7):
+    """Open tasks with a due date, grouped for an agenda: "overdue" first, then one
+    group per day from today up to *days* days ahead. Days without tasks are left out."""
+    today = today or date.today()
+    last = today + timedelta(days=days - 1)
+    groups = {}
+    for task in sort_tasks([t for t in tasks if not t["done"] and t.get("due")]):
+        due = date.fromisoformat(task["due"])
+        if due < today:
+            key = "overdue"
+        elif due <= last:
+            key = due.isoformat()
+        else:
+            continue
+        groups.setdefault(key, []).append(task)
+    ordered = {}
+    if "overdue" in groups:
+        ordered["overdue"] = groups.pop("overdue")
+    for key in sorted(groups):
+        ordered[key] = groups[key]
+    return ordered
+
+
 def stats(tasks, today=None, days=7):
     """Counts for the summary: open/done/overdue, and tasks completed per day
     over the last *days* days (oldest first)."""
@@ -276,6 +299,9 @@ def main(argv=None):
     p_edit.add_argument("id", type=int)
     p_edit.add_argument("title", nargs="+")
 
+    p_agenda = sub.add_parser("agenda", help="open tasks due in the next days, grouped by day")
+    p_agenda.add_argument("-n", "--days", type=int, default=7, help="days to look ahead (default: 7)")
+
     p_stats = sub.add_parser("stats", help="open/done counts and tasks completed per day")
     p_stats.add_argument("-n", "--days", type=int, default=7, help="days to show (default: 7)")
 
@@ -328,6 +354,17 @@ def main(argv=None):
         save_tasks(args.db, tasks)
         print(f"Cleared {removed} completed task(s)")
 
+    elif args.command == "agenda":
+        if args.days < 1:
+            raise SystemExit("--days must be at least 1")
+        groups = agenda(tasks, days=args.days)
+        if not groups:
+            print(f"Nothing due in the next {args.days} day(s).")
+        for key, items in groups.items():
+            heading = "Overdue" if key == "overdue" else date.fromisoformat(key).strftime("%a %Y-%m-%d")
+            print(heading)
+            for task in items:
+                print(f"  {format_task(task)}")
     elif args.command == "stats":
         if args.days < 1:
             raise SystemExit("--days must be at least 1")
