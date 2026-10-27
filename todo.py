@@ -165,6 +165,29 @@ def tag_counts(tasks, only_open=True):
     return sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))
 
 
+def agenda(tasks, today=None, days=7):
+    """Open tasks with a due date, grouped for an agenda: "overdue" first, then one
+    group per day from today up to *days* days ahead. Days without tasks are left out."""
+    today = today or date.today()
+    last = today + timedelta(days=days - 1)
+    groups = {}
+    for task in sort_tasks([t for t in tasks if not t["done"] and t.get("due")]):
+        due = date.fromisoformat(task["due"])
+        if due < today:
+            key = "overdue"
+        elif due <= last:
+            key = due.isoformat()
+        else:
+            continue
+        groups.setdefault(key, []).append(task)
+    ordered = {}
+    if "overdue" in groups:
+        ordered["overdue"] = groups.pop("overdue")
+    for key in sorted(groups):
+        ordered[key] = groups[key]
+    return ordered
+
+
 def stats(tasks, today=None, days=7):
     """Counts for the summary: open/done/overdue, and tasks completed per day
     over the last *days* days (oldest first)."""

@@ -280,3 +280,22 @@ def test_cli_stats(tmp_path, capsys):
     assert out[-1].endswith("1  #")
     with pytest.raises(SystemExit):
         todo.main(["--db", str(db), "stats", "-n", "0"])
+
+
+def test_agenda_groups_by_day():
+    from datetime import date
+
+    today = date(2026, 10, 27)
+    tasks = []
+    todo.add_task(tasks, "late", due=date(2026, 10, 20))
+    todo.add_task(tasks, "today low", "low", date(2026, 10, 27))
+    todo.add_task(tasks, "today high", "high", date(2026, 10, 27))
+    todo.add_task(tasks, "friday", due=date(2026, 10, 30))
+    todo.add_task(tasks, "next month", due=date(2026, 11, 20))
+    todo.add_task(tasks, "no date")
+    todo.add_task(tasks, "done", due=date(2026, 10, 28))
+    todo.complete_task(tasks, 7, today=today)
+    result = todo.agenda(tasks, today, days=7)
+    assert list(result) == ["overdue", "2026-10-27", "2026-10-30"]
+    assert [t["title"] for t in result["2026-10-27"]] == ["today high", "today low"]
+    assert [t["title"] for t in result["overdue"]] == ["late"]
