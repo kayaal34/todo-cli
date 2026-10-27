@@ -299,3 +299,17 @@ def test_agenda_groups_by_day():
     assert list(result) == ["overdue", "2026-10-27", "2026-10-30"]
     assert [t["title"] for t in result["2026-10-27"]] == ["today high", "today low"]
     assert [t["title"] for t in result["overdue"]] == ["late"]
+
+
+def test_cli_agenda(tmp_path, capsys):
+    from datetime import date, timedelta
+
+    db = tmp_path / "tasks.json"
+    tomorrow = (date.today() + timedelta(days=1)).isoformat()
+    todo.main(["--db", str(db), "agenda"])
+    assert "Nothing due in the next 7 day(s)." in capsys.readouterr().out
+    todo.main(["--db", str(db), "add", "-d", tomorrow, "Dentist"])
+    capsys.readouterr()
+    todo.main(["--db", str(db), "agenda", "-n", "3"])
+    out = capsys.readouterr().out.splitlines()
+    assert out[0].endswith(tomorrow) and "Dentist" in out[1]

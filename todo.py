@@ -299,6 +299,9 @@ def main(argv=None):
     p_edit.add_argument("id", type=int)
     p_edit.add_argument("title", nargs="+")
 
+    p_agenda = sub.add_parser("agenda", help="open tasks due in the next days, grouped by day")
+    p_agenda.add_argument("-n", "--days", type=int, default=7, help="days to look ahead (default: 7)")
+
     p_stats = sub.add_parser("stats", help="open/done counts and tasks completed per day")
     p_stats.add_argument("-n", "--days", type=int, default=7, help="days to show (default: 7)")
 
@@ -351,6 +354,17 @@ def main(argv=None):
         save_tasks(args.db, tasks)
         print(f"Cleared {removed} completed task(s)")
 
+    elif args.command == "agenda":
+        if args.days < 1:
+            raise SystemExit("--days must be at least 1")
+        groups = agenda(tasks, days=args.days)
+        if not groups:
+            print(f"Nothing due in the next {args.days} day(s).")
+        for key, items in groups.items():
+            heading = "Overdue" if key == "overdue" else date.fromisoformat(key).strftime("%a %Y-%m-%d")
+            print(heading)
+            for task in items:
+                print(f"  {format_task(task)}")
     elif args.command == "stats":
         if args.days < 1:
             raise SystemExit("--days must be at least 1")
