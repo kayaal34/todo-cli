@@ -314,6 +314,10 @@ def main(argv=None):
     p_edit.add_argument("id", type=int)
     p_edit.add_argument("title", nargs="+")
 
+    p_snooze = sub.add_parser("snooze", help="push a task's due date back")
+    p_snooze.add_argument("id", type=int)
+    p_snooze.add_argument("days", type=int, nargs="?", default=1, help="days to add (default 1)")
+
     p_agenda = sub.add_parser("agenda", help="open tasks due in the next days, grouped by day")
     p_agenda.add_argument("-n", "--days", type=int, default=7, help="days to look ahead (default: 7)")
 
@@ -364,6 +368,12 @@ def main(argv=None):
         task = rename_task(tasks, args.id, " ".join(args.title))
         save_tasks(args.db, tasks)
         print(f"Updated task {task['id']}: {task['title']}")
+    elif args.command == "snooze":
+        if args.days < 1:
+            raise SystemExit("days must be at least 1")
+        task = snooze_task(tasks, args.id, args.days)
+        save_tasks(args.db, tasks)
+        print(f"Snoozed task {task['id']} to {task['due']}: {task['title']}")
     elif args.command == "clear":
         removed = clear_done(tasks)
         save_tasks(args.db, tasks)

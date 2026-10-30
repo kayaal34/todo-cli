@@ -347,3 +347,13 @@ def test_snooze_rejects_a_done_task():
     todo.complete_task(tasks, 1)
     with pytest.raises(SystemExit):
         todo.snooze_task(tasks, 1)
+
+
+def test_snooze_command(tmp_path, capsys):
+    db = tmp_path / "tasks.json"
+    todo.main(["--db", str(db), "add", "-d", "2999-01-01", "Far away"])
+    capsys.readouterr()
+    todo.main(["--db", str(db), "snooze", "1", "2"])
+    assert "2999-01-03" in capsys.readouterr().out
+    with pytest.raises(SystemExit):
+        todo.main(["--db", str(db), "snooze", "1", "0"])
