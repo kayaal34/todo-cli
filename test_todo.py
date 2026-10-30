@@ -1,3 +1,5 @@
+from datetime import date
+
 import pytest
 
 import todo
@@ -313,3 +315,35 @@ def test_cli_agenda(tmp_path, capsys):
     todo.main(["--db", str(db), "agenda", "-n", "3"])
     out = capsys.readouterr().out.splitlines()
     assert out[0].endswith(tomorrow) and "Dentist" in out[1]
+
+
+def test_snooze_moves_a_future_due_date():
+    tasks = []
+    todo.add_task(tasks, "a", due=date(2026, 11, 10))
+    todo.snooze_task(tasks, 1, days=3, today=date(2026, 11, 1))
+    assert tasks[0]["due"] == "2026-11-13"
+
+
+def test_snooze_counts_from_today_when_overdue_or_undated():
+    tasks = []
+    todo.add_task(tasks, "late", due=date(2026, 10, 1))
+    todo.add_task(tasks, "undated")
+    todo.snooze_task(tasks, 1, today=date(2026, 11, 1))
+    todo.snooze_task(tasks, 2, days=2, today=date(2026, 11, 1))
+    assert [t["due"] for t in tasks] == ["2026-11-02", "2026-11-03"]
+
+
+def test_snooze_keeps_a_repeating_task_on_its_schedule():
+    tasks = []
+    todo.add_task(tasks, "rent", due=date(2026, 10, 31), every="monthly")
+    todo.snooze_task(tasks, 1, days=5, today=date(2026, 10, 30))
+    _, follow_up = todo.complete_task(tasks, 1, today=date(2026, 11, 5))
+    assert follow_up["due"] == "2026-11-30"
+
+
+def test_snooze_rejects_a_done_task():
+    tasks = []
+    todo.add_task(tasks, "a")
+    todo.complete_task(tasks, 1)
+    with pytest.raises(SystemExit):
+        todo.snooze_task(tasks, 1)

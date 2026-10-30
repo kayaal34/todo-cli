@@ -137,6 +137,21 @@ def rename_task(tasks, task_id, title):
     return task
 
 
+def snooze_task(tasks, task_id, days=1, today=None):
+    """Push an open task's due date back by *days*, counting from today when it
+    is overdue or has no date. A repeating task keeps its original schedule:
+    the next occurrence still lands on the day the series started from."""
+    task = find_task(tasks, task_id)
+    if task["done"]:
+        raise SystemExit(f"Task {task_id} is already done")
+    today = today or date.today()
+    due = date.fromisoformat(task["due"]) if task.get("due") else None
+    if task.get("every") and due and not task.get("repeat_from"):
+        task["repeat_from"] = task["due"]
+    task["due"] = (max(today, due or today) + timedelta(days=days)).isoformat()
+    return task
+
+
 def clear_done(tasks):
     remaining = [t for t in tasks if not t["done"]]
     removed = len(tasks) - len(remaining)
