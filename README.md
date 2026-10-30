@@ -25,6 +25,7 @@ python todo.py list --search milk --open
 python todo.py edit 1 Buy oat milk
 python todo.py done 1
 python todo.py reopen 1     # undo "done" (also drops the next occurrence of a repeating task)
+python todo.py snooze 1 3   # due 3 days later (default 1), from today if overdue
 python todo.py rm 2
 python todo.py clear        # remove all completed tasks
 ```

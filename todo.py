@@ -137,6 +137,21 @@ def rename_task(tasks, task_id, title):
     return task
 
 
+def snooze_task(tasks, task_id, days=1, today=None):
+    """Push an open task's due date back by *days*, counting from today when it
+    is overdue or has no date. A repeating task keeps its original schedule:
+    the next occurrence still lands on the day the series started from."""
+    task = find_task(tasks, task_id)
+    if task["done"]:
+        raise SystemExit(f"Task {task_id} is already done")
+    today = today or date.today()
+    due = date.fromisoformat(task["due"]) if task.get("due") else None
+    if task.get("every") and due and not task.get("repeat_from"):
+        task["repeat_from"] = task["due"]
+    task["due"] = (max(today, due or today) + timedelta(days=days)).isoformat()
+    return task
+
+
 def clear_done(tasks):
     remaining = [t for t in tasks if not t["done"]]
     removed = len(tasks) - len(remaining)
@@ -299,6 +314,10 @@ def main(argv=None):
     p_edit.add_argument("id", type=int)
     p_edit.add_argument("title", nargs="+")
 
+    p_snooze = sub.add_parser("snooze", help="push a task's due date back")
+    p_snooze.add_argument("id", type=int)
+    p_snooze.add_argument("days", type=int, nargs="?", default=1, help="days to add (default 1)")
+
     p_agenda = sub.add_parser("agenda", help="open tasks due in the next days, grouped by day")
     p_agenda.add_argument("-n", "--days", type=int, default=7, help="days to look ahead (default: 7)")
 
@@ -349,6 +368,12 @@ def main(argv=None):
         task = rename_task(tasks, args.id, " ".join(args.title))
         save_tasks(args.db, tasks)
         print(f"Updated task {task['id']}: {task['title']}")
+    elif args.command == "snooze":
+        if args.days < 1:
+            raise SystemExit("days must be at least 1")
+        task = snooze_task(tasks, args.id, args.days)
+        save_tasks(args.db, tasks)
+        print(f"Snoozed task {task['id']} to {task['due']}: {task['title']}")
     elif args.command == "clear":
         removed = clear_done(tasks)
         save_tasks(args.db, tasks)
