@@ -137,6 +137,22 @@ def rename_task(tasks, task_id, title):
     return task
 
 
+def update_task(tasks, task_id, priority=None, due=None, clear_due=False, add_tags=None):
+    """Change a task's details in place; anything left as None stays as it is."""
+    task = find_task(tasks, task_id)
+    if priority:
+        task["priority"] = priority
+    if clear_due:
+        if task.get("every"):
+            raise SystemExit(f"Task {task_id} repeats, so it needs a due date")
+        task["due"] = None
+    elif due:
+        task["due"] = due.isoformat()
+    if add_tags:
+        task["tags"] = normalize_tags([*task.get("tags", []), *add_tags])
+    return task
+
+
 def snooze_task(tasks, task_id, days=1, today=None):
     """Push an open task's due date back by *days*, counting from today when it
     is overdue or has no date. A repeating task keeps its original schedule:
