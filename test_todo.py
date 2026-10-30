@@ -357,3 +357,38 @@ def test_snooze_command(tmp_path, capsys):
     assert "2999-01-03" in capsys.readouterr().out
     with pytest.raises(SystemExit):
         todo.main(["--db", str(db), "snooze", "1", "0"])
+
+
+def test_update_changes_only_what_is_given():
+    tasks = []
+    todo.add_task(tasks, "a", due=date(2026, 11, 1), tags=["home"])
+    todo.update_task(tasks, 1, priority="high", add_tags=["Urgent"])
+    assert tasks[0]["priority"] == "high"
+    assert tasks[0]["due"] == "2026-11-01"
+    assert sorted(tasks[0]["tags"]) == ["home", "urgent"]
+
+
+def test_update_due_date_and_clear():
+    tasks = []
+    todo.add_task(tasks, "a")
+    todo.update_task(tasks, 1, due=date(2026, 12, 1))
+    assert tasks[0]["due"] == "2026-12-01"
+    todo.update_task(tasks, 1, clear_due=True)
+    assert tasks[0]["due"] is None
+
+
+def test_update_keeps_the_due_date_of_a_repeating_task():
+    tasks = []
+    todo.add_task(tasks, "a", due=date(2026, 11, 1), every="weekly")
+    with pytest.raises(SystemExit):
+        todo.update_task(tasks, 1, clear_due=True)
+
+
+def test_set_command(tmp_path, capsys):
+    db = tmp_path / "tasks.json"
+    todo.main(["--db", str(db), "add", "Thing"])
+    todo.main(["--db", str(db), "set", "1", "-p", "low", "-d", "2999-05-01"])
+    task = todo.load_tasks(db)[0]
+    assert (task["priority"], task["due"]) == ("low", "2999-05-01")
+    with pytest.raises(SystemExit):
+        todo.main(["--db", str(db), "set", "1"])
