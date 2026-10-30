@@ -382,3 +382,13 @@ def test_update_keeps_the_due_date_of_a_repeating_task():
     todo.add_task(tasks, "a", due=date(2026, 11, 1), every="weekly")
     with pytest.raises(SystemExit):
         todo.update_task(tasks, 1, clear_due=True)
+
+
+def test_set_command(tmp_path, capsys):
+    db = tmp_path / "tasks.json"
+    todo.main(["--db", str(db), "add", "Thing"])
+    todo.main(["--db", str(db), "set", "1", "-p", "low", "-d", "2999-05-01"])
+    task = todo.load_tasks(db)[0]
+    assert (task["priority"], task["due"]) == ("low", "2999-05-01")
+    with pytest.raises(SystemExit):
+        todo.main(["--db", str(db), "set", "1"])

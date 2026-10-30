@@ -330,6 +330,15 @@ def main(argv=None):
     p_edit.add_argument("id", type=int)
     p_edit.add_argument("title", nargs="+")
 
+    p_set = sub.add_parser("set", help="change a task's priority, due date or tags")
+    p_set.add_argument("id", type=int)
+    p_set.add_argument("-p", "--priority", choices=PRIORITY_ORDER)
+    due_group = p_set.add_mutually_exclusive_group()
+    due_group.add_argument("-d", "--due", type=date.fromisoformat, help="new due date as YYYY-MM-DD")
+    due_group.add_argument("--no-due", action="store_true", help="remove the due date")
+    p_set.add_argument("-t", "--tag", action="append", dest="tags", default=[],
+                       help="add a tag (repeatable)")
+
     p_snooze = sub.add_parser("snooze", help="push a task's due date back")
     p_snooze.add_argument("id", type=int)
     p_snooze.add_argument("days", type=int, nargs="?", default=1, help="days to add (default 1)")
@@ -384,6 +393,12 @@ def main(argv=None):
         task = rename_task(tasks, args.id, " ".join(args.title))
         save_tasks(args.db, tasks)
         print(f"Updated task {task['id']}: {task['title']}")
+    elif args.command == "set":
+        if not (args.priority or args.due or args.no_due or args.tags):
+            raise SystemExit("Nothing to change: pass --priority, --due, --no-due or --tag")
+        task = update_task(tasks, args.id, args.priority, args.due, args.no_due, args.tags)
+        save_tasks(args.db, tasks)
+        print(f"Updated: {format_task(task)}")
     elif args.command == "snooze":
         if args.days < 1:
             raise SystemExit("days must be at least 1")
